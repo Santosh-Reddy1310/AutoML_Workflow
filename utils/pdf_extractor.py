@@ -1,7 +1,6 @@
 import pandas as pd
 import PyPDF2
 import pdfplumber
-import tabula
 import google.generativeai as genai
 import streamlit as st
 import io
@@ -26,18 +25,9 @@ class PDFDataExtractor:
             return ""
     
     def extract_tables_from_pdf(self, pdf_file) -> List[pd.DataFrame]:
-        """Extract tables from PDF using tabula-py and pdfplumber"""
+        """Extract tables from PDF using only pdfplumber"""
         tables = []
-        
         try:
-            # Try tabula-py first
-            df_list = tabula.read_pdf(pdf_file, pages='all', multiple_tables=True)
-            tables.extend(df_list)
-        except Exception as e:
-            st.warning(f"Tabula extraction failed: {str(e)}")
-        
-        try:
-            # Try pdfplumber as backup
             with pdfplumber.open(pdf_file) as pdf:
                 for page in pdf.pages:
                     table = page.extract_table()
@@ -92,7 +82,6 @@ class PDFDataExtractor:
         
         # Process the best table for ML
         if result["tables"]:
-            # Select the largest table
             largest_table = max(result["tables"], key=len)
             result["processed_data"] = self.clean_dataframe(largest_table)
         
@@ -100,16 +89,10 @@ class PDFDataExtractor:
     
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean and prepare DataFrame for ML"""
-        # Remove empty rows and columns
         df = df.dropna(how='all').dropna(axis=1, how='all')
-        
-        # Convert numeric columns
         for col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='ignore')
-        
-        # Remove non-numeric columns with too many unique values
         for col in df.columns:
             if df[col].dtype == 'object' and df[col].nunique() > len(df) * 0.5:
                 df = df.drop(columns=[col])
-        
         return df
